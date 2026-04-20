@@ -1,0 +1,86 @@
+Full Stack Assignment: Timesheet Management System
+Objective: Build a production-quality Timesheet Management system using .NET 8 and Angular.
+The system should allow employees to submit timesheets against assigned project codes and
+managers to manage projects, approve hours, and generate reports.
+Roles
+
+Employee: Submit weekly timesheets against assigned project codes.
+
+Manager: Create project codes, assign them to employees, approve or reject timesheets, and
+view reports.
+Project Code Management (Manager)
+
+Create, update, activate, and deactivate project codes.
+
+Each project code must include: Project Code, Project Name, Client Name, Billable Flag,
+Status.
+Project Assignment (Manager)
+
+Assign one or more project codes to employees.
+
+Define assignment start and end dates.
+
+Employees can submit timesheets only for assigned and active project codes.
+Timesheet Submission (Employee)
+
+Submit weekly timesheets with date, project code, hours worked, and description.
+
+Maximum 24 hours per day.
+
+No duplicate entries for same project code and date.
+
+Timesheet lifecycle: Draft → Submitted → Approved / Rejected.
+Timesheet Approval (Manager)
+
+View pending timesheets submitted by employees.
+
+Approve or reject timesheets.
+
+Rejection requires mandatory comments.
+Reports (Manager)
+
+Employee-wise hours summary.
+
+Project-wise hours summary.
+
+Billable vs non-billable hours.
+
+Date range based filtering.
+
+All aggregations must be done using EF Core and LINQ queries.
+
+Backend Requirements (.NET 8)
+
+RESTful Web API using .NET 8.
+
+Entity Framework Core with code-first approach.
+
+AutoMapper for entity-DTO mapping.
+
+Dependency Injection for repositories and services.
+
+Design Patterns: Factory, Strategy, Decorator.
+
+Unit testing using NUnit and Moq.
+Frontend Requirements (Angular)
+
+Feature-based module architecture.
+
+Reactive Forms for timesheet entry.
+
+NgRx for global state management.
+
+RxJS for asynchronous data handling.
+
+Angular Signals for local UI state.
+
+Role-based routing and UI access.
+Deliverables
+
+Git repository with complete source code.
+
+README explaining architecture, design patterns, and trade-offs.
+
+SQL seed data script.
+
+Unit test execution results.

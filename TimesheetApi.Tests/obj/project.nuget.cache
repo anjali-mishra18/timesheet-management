@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "dgSpecHash": "s7t9jzE0PbM=",
+  "success": false,
+  "projectFilePath": "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\TimesheetApi.Tests\\TimesheetApi.Tests.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Shivendu Mishra\\.nuget\\packages\\nunit\\4.5.1\\nunit.4.5.1.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1603",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "TimesheetApi.Tests depends on NUnit (>= 3.14.0) but NUnit 3.14.0 was not found. An approximate best match of NUnit 4.5.1 was resolved.",
+      "libraryId": "NUnit",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'coverlet.collector (>= 6.0.0)' for 'net8.0'.",
+      "libraryId": "coverlet.collector",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'Microsoft.NET.Test.Sdk (>= 17.8.0)' for 'net8.0'.",
+      "libraryId": "Microsoft.NET.Test.Sdk",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'NUnit.Analyzers (>= 3.9.0)' for 'net8.0'.",
+      "libraryId": "NUnit.Analyzers",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    },
+    {
+      "code": "NU1100",
+      "level": "Error",
+      "message": "Unable to resolve 'NUnit3TestAdapter (>= 4.5.0)' for 'net8.0'.",
+      "libraryId": "NUnit3TestAdapter",
+      "targetGraphs": [
+        "net8.0"
+      ]
+    }
+  ]
+}

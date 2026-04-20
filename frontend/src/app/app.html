@@ -1,0 +1,467 @@
+<ng-container *ngIf="isAuthenticated(); else loginTpl">
+<div class="dashboard-container">
+  <!-- Sidebar -->
+  <aside class="sidebar glass-panel">
+    <div class="logo">
+      <div class="logo-icon"></div>
+      <h2 style="font-size: 1.2rem;">Timesheet System</h2>
+    </div>
+    
+    <nav class="nav-menu">
+      <ng-container *ngIf="role() === 'Employee'">
+        <a href="#" class="nav-item" [class.active]="activeTab() === 'dashboard'" (click)="$event.preventDefault(); setTab('dashboard')">
+          <span>My Dashboard</span>
+        </a>
+      </ng-container>
+
+      <ng-container *ngIf="role() === 'Manager'">
+        <a href="#" class="nav-item" style="display: flex; align-items: center; justify-content: space-between;" [class.active]="activeTab() === 'approvals'" (click)="$event.preventDefault(); setTab('approvals')">
+          <span>Timesheet Approvals</span>
+          <span *ngIf="pendingTimesheets().length > 0" style="width: 10px; height: 10px; background-color: var(--danger); border-radius: 50%; box-shadow: 0 0 8px var(--danger); animation: pulse 2s infinite;"></span>
+        </a>
+        <a href="#" class="nav-item" [class.active]="activeTab() === 'projects'" (click)="$event.preventDefault(); setTab('projects')">
+          <span>Project Management</span>
+        </a>
+        <a href="#" class="nav-item" [class.active]="activeTab() === 'reports'" (click)="$event.preventDefault(); setTab('reports')">
+          <span>Reports</span>
+        </a>
+      </ng-container>
+    </nav>
+    
+    <div class="user-profile">
+      <div class="avatar">{{ role() === 'Employee' ? 'E' : 'M' }}</div>
+      <div class="user-info">
+        <p class="name">{{ loggedInFullName() }}</p>
+        <p class="role" style="color: var(--danger); cursor: pointer;" (click)="logout()">Sign Out</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="topbar">
+      <div class="search-bar">
+        <span style="font-weight: 600;">System View: {{ role() | uppercase }}</span>
+      </div>
+      <button class="btn" *ngIf="role() === 'Employee'" (click)="openNewTimesheet()">+ New Timesheet</button>
+      <button class="btn" *ngIf="role() === 'Manager' && activeTab() === 'projects'" (click)="openNewProject()">+ New Project Code</button>
+    </header>
+
+    <div class="content flex-column animate-enter" style="animation-delay: 0.1s;">
+      
+      <!-- ============================================== -->
+      <!-- EMPLOYEE VIEW -->
+      <!-- ============================================== -->
+      <ng-container *ngIf="role() === 'Employee' && activeTab() === 'dashboard'">
+        <div class="stats-grid">
+          <div class="stat-card glass-panel">
+            <p class="stat-title">Hours Logged</p>
+            <h3 class="stat-value">{{ totalEmployeeHours() }}h</h3>
+            <p class="stat-change success">Total approved/submitted hours</p>
+          </div>
+        </div>
+
+        <div class="recent-timesheets glass-panel animate-enter" style="animation-delay: 0.2s;">
+          <div class="card-header">
+            <h2>My Timesheets</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Project Code</th>
+                <th>Hours</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let t of employeeTimesheets()">
+                <td>{{ t.date }}</td>
+                <td>{{ t.projectCode }}</td>
+                <td>{{ t.hours }}h</td>
+                <td style="max-width: 300px; word-wrap: break-word;">{{ t.description }}</td>
+                <td>
+                  <span class="badge" [ngClass]="{
+                    'badge-active': t.status === 'Approved',
+                    'badge-pending': t.status === 'Submitted',
+                    'badge-draft': t.status === 'Draft',
+                    'badge-rejected': t.status === 'Rejected'
+                  }">{{ t.status }}</span>
+                  <div *ngIf="t.managerComment" style="font-size: 11px; color: var(--danger); margin-top: 4px;">{{ t.managerComment }}</div>
+                </td>
+                <td>
+                  <div style="display: flex; gap: 8px;">
+                    <!-- Draft Actions -->
+                    <button class="btn btn-success" style="padding: 4px 10px;" *ngIf="t.status === 'Draft'" (click)="submitTimesheet(t.id)">Submit</button>
+                    <button class="btn btn-danger" style="padding: 4px 10px;" *ngIf="t.status === 'Draft'" (click)="deleteTimesheet(t.id)">Delete</button>
+                    
+                    <!-- Rejected Action -->
+                    <span style="font-size: 13px; color: #eab308; font-weight: 500;" *ngIf="t.status === 'Rejected'">Submit Again</span>
+                    
+                    <span *ngIf="t.status === 'Submitted' || t.status === 'Approved'">--</span>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="employeeTimesheets().length === 0">
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">No timesheets found.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+
+      <!-- ============================================== -->
+      <!-- MANAGER VIEW - APPROVALS -->
+      <!-- ============================================== -->
+      <ng-container *ngIf="role() === 'Manager' && activeTab() === 'approvals'">
+        <div class="stats-grid">
+          <div class="stat-card glass-panel">
+            <p class="stat-title">Pending Approvals</p>
+            <h3 class="stat-value warning-text">{{ pendingTimesheets().length }}</h3>
+            <p class="stat-change">Timesheets awaiting review</p>
+          </div>
+        </div>
+
+        <div class="recent-timesheets glass-panel animate-enter" style="animation-delay: 0.2s;">
+          <div class="card-header">
+            <h2>Pending Timesheets</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Date</th>
+                <th>Project Code</th>
+                <th>Hours</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let t of pendingTimesheets()">
+                <td>{{ t.employee }}</td>
+                <td>{{ t.date }}</td>
+                <td>{{ t.projectCode }}</td>
+                <td>{{ t.hours }}h</td>
+                <td style="max-width: 300px; word-wrap: break-word;">{{ t.description }}</td>
+                <td>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-success" style="padding: 4px 10px;" (click)="approveTimesheet(t.id)">Approve</button>
+                    <button class="btn btn-danger" style="padding: 4px 10px;" (click)="openRejectModal(t.id)">Reject</button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="pendingTimesheets().length === 0">
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">All caught up! No pending approvals.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+
+      <!-- ============================================== -->
+      <!-- MANAGER VIEW - PROJECTS -->
+      <!-- ============================================== -->
+      <ng-container *ngIf="role() === 'Manager' && activeTab() === 'projects'">
+        <div class="recent-timesheets glass-panel animate-enter">
+          <div class="card-header">
+            <h2>All Projects</h2>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Project Name</th>
+                <th>Client</th>
+                <th>Billable?</th>
+                <th>Assigned To</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of projects()">
+                <td style="font-weight: bold;">{{ p.code }}</td>
+                <td>{{ p.name }}</td>
+                <td>{{ p.client }}</td>
+                <td>{{ p.isBillable ? 'Yes' : 'No' }}</td>
+                <td>{{ p.assignedEmployee || 'Unassigned' }}</td>
+                <td>{{ p.startDate && p.endDate ? p.startDate + ' to ' + p.endDate : 'Not set' }}</td>
+                <td>
+                  <span class="badge" [ngClass]="p.status === 'Active' ? 'badge-active' : 'badge-draft'">{{ p.status }}</span>
+                </td>
+                <td>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn" style="padding: 4px 10px; background: #f3f4f6; color: var(--text-main); border: 1px solid var(--border-color);" (click)="editProject(p)">Update</button>
+                    <button class="btn" style="padding: 4px 10px;" [ngStyle]="{'background': p.status === 'Active' ? 'var(--warning)' : 'var(--success)'}" (click)="toggleProjectStatus(p.id)">
+                      {{ p.status === 'Active' ? 'Deactivate' : 'Activate' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+
+      <!-- ============================================== -->
+      <!-- MANAGER VIEW - REPORTS -->
+      <!-- ============================================== -->
+      <ng-container *ngIf="role() === 'Manager' && activeTab() === 'reports'">
+        
+        <div class="glass-panel" style="padding: 15px 20px; display: flex; gap: 20px; align-items: center; margin-bottom: 20px;">
+          <strong style="color: var(--text-muted); font-size: 14px;">Filter Date Range:</strong>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 12px; color: var(--text-muted);">From</label>
+            <input type="date" class="input-field" style="width: 150px; padding: 5px 10px;" [ngModel]="filterStartDate()" (ngModelChange)="filterStartDate.set($event)">
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 12px; color: var(--text-muted);">To</label>
+            <input type="date" class="input-field" style="width: 150px; padding: 5px 10px;" [ngModel]="filterEndDate()" (ngModelChange)="filterEndDate.set($event)">
+          </div>
+          <button class="btn" style="padding: 4px 12px; background: #f3f4f6; color: var(--text-main); border: 1px solid var(--border-color);" (click)="filterStartDate.set(''); filterEndDate.set('')">Clear</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="recent-timesheets glass-panel animate-enter" style="grid-column: span 1;">
+            <div class="card-header"><h2>Employee-wise Summary (Approved)</h2></div>
+            <table>
+              <thead><tr><th>Employee</th><th>Total Hours</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let e of employeeWiseReport()">
+                  <td>{{ e.emp }}</td><td>{{ e.hours }}h</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="recent-timesheets glass-panel animate-enter" style="grid-column: span 2;">
+            <div class="card-header"><h2>Project-wise Summary (Approved)</h2></div>
+            <table>
+              <thead><tr><th>Project Code</th><th>Total Hours</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let p of projectWiseReport()">
+                  <td>{{ p.code }}</td><td>{{ p.hours }}h</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="recent-timesheets glass-panel animate-enter" style="grid-column: span 1;">
+            <div class="card-header"><h2>Billing Summary (Approved)</h2></div>
+            <table>
+              <thead><tr><th>Type</th><th>Total Hours</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><span class="badge badge-active" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">Billable</span></td>
+                  <td style="font-weight: bold;">{{ billingReport().billable }}h</td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-draft" style="background: rgba(255, 255, 255, 0.1); color: var(--text-muted);">Non-Billable</span></td>
+                  <td style="font-weight: bold;">{{ billingReport().nonBillable }}h</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </ng-container>
+
+    </div>
+  </main>
+</div>
+
+<!-- ============================================== -->
+<!-- MODALS -->
+<!-- ============================================== -->
+
+<!-- New Timesheet (Employee) -->
+<div class="modal-overlay" *ngIf="showTimesheetModal()" (click)="closeTimesheetModal()">
+  <div class="modal-content glass-panel" (click)="$event.stopPropagation()">
+    <h2 style="margin-bottom: 20px;">Submit New Timesheet</h2>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Select Project Code</label>
+      <select class="input-field" [ngModel]="tProject()" (ngModelChange)="tProject.set($event)">
+        <option value="" selected style="color: #a5b4fc;">-- Select assigned project --</option>
+        <option *ngFor="let p of myAssignedProjects()" [value]="p.code">{{ p.code }} - {{ p.name }}</option>
+      </select>
+      
+      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Date</label>
+      <input type="date" class="input-field" [ngModel]="tDate()" (ngModelChange)="tDate.set($event)">
+      
+      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Hours Worked (Max 24)</label>
+      <input type="number" class="input-field" placeholder="Hours" max="24" [ngModel]="tHours()" (ngModelChange)="tHours.set($event)">
+      
+      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Description</label>
+      <textarea class="input-field" placeholder="Description of work done..." rows="3" [ngModel]="tDesc()" (ngModelChange)="tDesc.set($event)"></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+      <button class="btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main);" (click)="closeTimesheetModal()">Cancel</button>
+      <button class="btn btn-success" (click)="saveTimesheet()">Save Draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- New / Update Project (Manager) -->
+<div class="modal-overlay" *ngIf="showProjectModal()" (click)="closeProjectModal()">
+  <div class="modal-content glass-panel" (click)="$event.stopPropagation()">
+    <h2>{{ editProjectId() ? 'Update Project Code' : 'Create Assigned Project Code' }}</h2>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+      <input type="text" class="input-field" placeholder="Project Code (e.g. PRJ-200)" [ngModel]="pCode()" (ngModelChange)="pCode.set($event)">
+      <input type="text" class="input-field" placeholder="Project Name" [ngModel]="pName()" (ngModelChange)="pName.set($event)">
+      <input type="text" class="input-field" placeholder="Client Name" [ngModel]="pClient()" (ngModelChange)="pClient.set($event)">
+      
+      <label style="display: flex; align-items: center; gap: 10px; color: var(--text-muted);">
+        <input type="checkbox" [ngModel]="pBillable()" (ngModelChange)="pBillable.set($event)"> Billable Project
+      </label>
+
+      <!-- Assignment Fields -->
+      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px; margin-top: 10px;">Assign Employee</label>
+      <select class="input-field" [ngModel]="pAssignee()" (ngModelChange)="pAssignee.set($event)">
+        <option value="" selected style="color: #a5b4fc;">-- Select Employee --</option>
+        <option *ngFor="let emp of employeeList" [value]="emp">{{ emp }}</option>
+      </select>
+
+      <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+          <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Start Date</label>
+          <input type="date" class="input-field" [ngModel]="pStartDate()" (ngModelChange)="pStartDate.set($event)">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">End Date</label>
+          <input type="date" class="input-field" [ngModel]="pEndDate()" (ngModelChange)="pEndDate.set($event)">
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+      <button class="btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main);" (click)="closeProjectModal()">Cancel</button>
+      <button class="btn btn-success" (click)="saveProject()">{{ editProjectId() ? 'Save Changes' : 'Create Project Code' }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Timesheet (Manager) -->
+<div class="modal-overlay" *ngIf="showRejectModal()" (click)="closeRejectModal()">
+  <div class="modal-content glass-panel" (click)="$event.stopPropagation()">
+    <h2>Reject Timesheet</h2>
+    <p style="color: var(--danger); margin-bottom: 20px; font-size: 13px;">Rejection requires mandatory comments.</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+      <textarea class="input-field" placeholder="Reason for rejection..." rows="4" [ngModel]="rejectComment()" (ngModelChange)="rejectComment.set($event)"></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+      <button class="btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main);" (click)="closeRejectModal()">Cancel</button>
+      <button class="btn btn-danger" (click)="rejectTimesheet()">Confirm Reject</button>
+    </div>
+  </div>
+</div>
+</ng-container>
+
+<!-- ============================================== -->
+<!-- LOGIN TEMPLATE -->
+<!-- ============================================== -->
+<ng-template #loginTpl>
+  <div class="login-wrapper">
+    <div class="login-card glass-panel" style="width: 450px; padding: 40px;">
+      
+      <!-- Role Selection -->
+      <ng-container *ngIf="!loginRoleContext()">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <div class="logo-icon" style="width: 48px; height: 48px; margin: 0 auto 16px;"></div>
+          <h2>Timesheet Management System</h2>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+          <button class="btn" style="padding: 16px; font-size: 16px; background: #f3f4f6; border: 1px solid var(--border-color); color: var(--text-main);" (click)="loginRoleContext.set('Employee'); loginUsername.set('emp_charlie')">
+            Login as Employee
+          </button>
+          <button class="btn" style="padding: 16px; font-size: 16px; background: #fff7ed; border: 1px solid var(--primary-color); color: var(--primary-color);" (click)="loginRoleContext.set('Manager'); loginUsername.set('manager_alice')">
+            Login as Manager
+          </button>
+        </div>
+
+      </ng-container>
+
+      <!-- Credentials Form -->
+      <ng-container *ngIf="loginRoleContext()">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h2 style="color: {{ loginRoleContext() === 'Manager' ? 'var(--primary-color)' : 'var(--text-main)' }}">{{ loginRoleContext() }} Login</h2>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+          <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Username</label>
+          <input type="text" class="input-field" placeholder="Username" [ngModel]="loginUsername()" (ngModelChange)="loginUsername.set($event)">
+          
+          <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Password</label>
+          <input type="password" class="input-field" placeholder="Password" [ngModel]="loginPassword()" (ngModelChange)="loginPassword.set($event)">
+
+          <button class="btn btn-success" style="padding: 14px; margin-top: 10px; font-size: 15px;" (click)="doLogin()">Authenticate securely</button>
+          
+          <button class="btn" style="background: transparent; color: var(--text-muted);" (click)="loginRoleContext.set(null)">← Go back</button>
+        </div>
+      </ng-container>
+      
+    </div>
+  </div>
+</ng-template>
+
+<!-- Custom Glass Toast Alert -->
+<div class="custom-toast" [class.show]="customAlertMessage() !== ''">
+  <div class="toast-content glass-panel">
+    <div class="toast-icon">⚠️</div>
+    <div class="toast-message">{{ customAlertMessage() }}</div>
+    <button class="toast-close" (click)="customAlertMessage.set('')">&times;</button>
+  </div>
+</div>
+
+<router-outlet></router-outlet>
+<style>
+.custom-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 9999; pointer-events: none; }
+.custom-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+.toast-content { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border: 1px solid var(--danger); border-radius: 0; background: white; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+.toast-icon { font-size: 18px; }
+.toast-message { color: var(--text-main); font-weight: 500; font-size: 14px; max-width: 400px; }
+.toast-close { background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; margin-left: auto; }
+.toast-close:hover { color: var(--text-main); }
+
+.login-wrapper { display: flex; align-items: center; justify-content: center; height: 100vh; background: #f3f4f6; }
+.login-card { animation: fadeInSlideUp 0.4s ease-out; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); border: 1px solid var(--border-color); }
+
+.dashboard-container { display: flex; height: 100vh; padding: 1rem; gap: 1.5rem; background: #f9fafb; }
+.sidebar { width: 260px; display: flex; flex-direction: column; padding: 24px; background: white; border-radius: 0; border: 1px solid var(--border-color); }
+.logo { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
+@keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+.logo-icon { width: 32px; height: 32px; border-radius: 0; background: linear-gradient(135deg, var(--primary-color), #fb923c); }
+.nav-menu { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.nav-item { text-decoration: none; color: var(--text-muted); padding: 12px 16px; border-radius: 0; transition: all 0.2s ease; font-weight: 500; }
+.nav-item:hover, .nav-item.active { background: #fef3c7; color: var(--primary-color); }
+.nav-item.active { font-weight: 600; border-left: 4px solid var(--primary-color); background: #fff7ed; }
+.user-profile { display: flex; align-items: center; gap: 12px; padding-top: 24px; border-top: 1px solid var(--border-color); }
+.avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--primary-color); display: flex; align-items: center; justify-content: center; font-weight: 600; color: white; }
+.user-info .name { font-weight: 600; font-size: 14px; color: var(--text-main); }
+.user-info .role { font-size: 12px; color: var(--text-muted); }
+.main-content { flex: 1; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-radius: 0; background: white; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.search-bar { width: 400px; color: var(--text-main); }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.stat-card { padding: 24px; background: white; }
+.stat-title { color: var(--text-muted); font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+.stat-value { font-size: 32px; font-weight: 700; margin-bottom: 8px; color: var(--text-main); }
+.stat-change { font-size: 13px; color: var(--text-muted); }
+.stat-change.success { color: var(--success); }
+.warning-text { color: var(--primary-color); }
+.recent-timesheets { padding: 24px; margin-top: 10px; overflow-x: auto; background: white; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f3f4f6; padding-bottom: 15px; }
+.card-header h2 { font-size: 1.25rem; color: var(--text-main); font-weight: 700; }
+.btn-small { padding: 6px 12px; font-size: 12px; }
+table { margin-top: 0; width: 100%; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal-content { width: 450px; padding: 30px; animation: fadeInSlideUp 0.3s ease-out; background: white; border-radius: 0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+</style>
