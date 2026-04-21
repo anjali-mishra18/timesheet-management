@@ -1,21 +1,21 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\backend\\TimesheetApi.csproj": {}
+    "/Users/anjalimishra/Downloads/timesheet-system-main/backend/TimesheetApi.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\backend\\TimesheetApi.csproj": {
+    "/Users/anjalimishra/Downloads/timesheet-system-main/backend/TimesheetApi.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\backend\\TimesheetApi.csproj",
+        "projectUniqueName": "/Users/anjalimishra/Downloads/timesheet-system-main/backend/TimesheetApi.csproj",
         "projectName": "TimesheetApi",
-        "projectPath": "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\backend\\TimesheetApi.csproj",
-        "packagesPath": "C:\\Users\\Shivendu Mishra\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\backend\\obj\\",
+        "projectPath": "/Users/anjalimishra/Downloads/timesheet-system-main/backend/TimesheetApi.csproj",
+        "packagesPath": "/Users/anjalimishra/.nuget/packages/",
+        "outputPath": "/Users/anjalimishra/Downloads/timesheet-system-main/backend/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\backend\\NuGet.Config",
-          "C:\\Users\\Shivendu Mishra\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "/Users/anjalimishra/Downloads/timesheet-system-main/backend/NuGet.Config",
+          "/Users/anjalimishra/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -102,7 +102,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Users\\Shivendu Mishra\\Desktop\\anjali_project\\local-dotnet\\sdk\\8.0.420/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/x64/sdk/8.0.420/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
