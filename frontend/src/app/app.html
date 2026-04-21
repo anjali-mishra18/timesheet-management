@@ -68,44 +68,55 @@
           <table>
             <thead>
               <tr>
-                <th>Date</th>
+                <th>Week Range</th>
                 <th>Project Code</th>
-                <th>Hours</th>
+                <th>MON</th><th>TUE</th><th>WED</th><th>THU</th><th>FRI</th><th>SAT</th><th>SUN</th>
                 <th>Description</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let t of employeeTimesheets()">
-                <td>{{ t.date }}</td>
-                <td>{{ t.projectCode }}</td>
-                <td>{{ t.hours }}h</td>
-                <td style="max-width: 300px; word-wrap: break-word;">{{ t.description }}</td>
+              <tr *ngFor="let g of groupedTimesheets()">
+                <td style="font-size: 13px; color: var(--text-muted);">{{ g.weekRange }}</td>
+                <td><strong>{{ g.projectCode }}</strong></td>
+                <td>{{ g.hours.mon || '-' }}</td>
+                <td>{{ g.hours.tue || '-' }}</td>
+                <td>{{ g.hours.wed || '-' }}</td>
+                <td>{{ g.hours.thu || '-' }}</td>
+                <td>{{ g.hours.fri || '-' }}</td>
+                <td style="color: #94a3b8;">{{ g.hours.sat || '-' }}</td>
+                <td style="color: #94a3b8;">{{ g.hours.sun || '-' }}</td>
+                <td style="max-width: 200px; word-wrap: break-word;">{{ g.description }}</td>
                 <td>
                   <span class="badge" [ngClass]="{
-                    'badge-active': t.status === 'Approved',
-                    'badge-pending': t.status === 'Submitted',
-                    'badge-draft': t.status === 'Draft',
-                    'badge-rejected': t.status === 'Rejected'
-                  }">{{ t.status }}</span>
-                  <div *ngIf="t.managerComment" style="font-size: 11px; color: var(--danger); margin-top: 4px;">{{ t.managerComment }}</div>
+                    'badge-active': g.status === 'Approved',
+                    'badge-pending': g.status === 'Submitted',
+                    'badge-draft': g.status === 'Draft',
+                    'badge-rejected': g.status === 'Rejected'
+                  }">{{ g.status }}</span>
+                  <div *ngIf="g.status === 'Rejected' && g.managerComment" style="font-size: 11px; color: var(--danger); margin-top: 6px; font-weight: 600; line-height: 1.2;">
+                    💬 {{ g.managerComment }}
+                  </div>
                 </td>
                 <td>
                   <div style="display: flex; gap: 8px;">
-                    <!-- Draft Actions -->
-                    <button class="btn btn-success" style="padding: 4px 10px;" *ngIf="t.status === 'Draft'" (click)="submitTimesheet(t.id)">Submit</button>
-                    <button class="btn btn-danger" style="padding: 4px 10px;" *ngIf="t.status === 'Draft'" (click)="deleteTimesheet(t.id)">Delete</button>
+                    <!-- Update only available for Draft/Rejected -->
+                    <button class="btn btn-primary" style="padding: 4px 10px;" 
+                      *ngIf="g.status === 'Draft' || g.status === 'Rejected'" 
+                      (click)="editTimesheet(g)">Update</button>
                     
-                    <!-- Rejected Action -->
-                    <span style="font-size: 13px; color: #eab308; font-weight: 500;" *ngIf="t.status === 'Rejected'">Submit Again</span>
+                    <!-- Delete available for Draft, Submitted, or Rejected (but NOT Approved) -->
+                    <button class="btn btn-danger" style="padding: 4px 10px;" 
+                      *ngIf="g.status !== 'Approved'" 
+                      (click)="deleteTimesheet(g.ids)">Delete</button>
                     
-                    <span *ngIf="t.status === 'Submitted' || t.status === 'Approved'">--</span>
+                    <span *ngIf="g.status === 'Approved'">--</span>
                   </div>
                 </td>
               </tr>
-              <tr *ngIf="employeeTimesheets().length === 0">
-                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">No timesheets found.</td>
+              <tr *ngIf="groupedTimesheets().length === 0">
+                <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 20px;">No weekly logs found.</td>
               </tr>
             </tbody>
           </table>
@@ -119,42 +130,47 @@
         <div class="stats-grid">
           <div class="stat-card glass-panel">
             <p class="stat-title">Pending Approvals</p>
-            <h3 class="stat-value warning-text">{{ pendingTimesheets().length }}</h3>
-            <p class="stat-change">Timesheets awaiting review</p>
+            <h3 class="stat-value warning-text">{{ groupedPendingTimesheets().length }}</h3>
+            <p class="stat-change">Weekly blocks awaiting review</p>
           </div>
         </div>
 
-        <div class="recent-timesheets glass-panel animate-enter" style="animation-delay: 0.2s;">
-          <div class="card-header">
-            <h2>Pending Timesheets</h2>
-          </div>
+        <div class="recent-timesheets glass-panel animate-enter" style="animation-delay: 0.2s; padding: 30px;">
+          <h2 style="margin-bottom: 25px; font-size: 20px; font-weight: 700; color: var(--text-main);">Pending Weekly Approvals</h2>
+          
           <table>
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Date</th>
+                <th style="text-align: left;">Employee</th>
+                <th>Week Range</th>
                 <th>Project Code</th>
-                <th>Hours</th>
+                <th>Total Weekly Hours</th>
                 <th>Description</th>
-                <th>Actions</th>
+                <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let t of pendingTimesheets()">
-                <td>{{ t.employee }}</td>
-                <td>{{ t.date }}</td>
-                <td>{{ t.projectCode }}</td>
-                <td>{{ t.hours }}h</td>
-                <td style="max-width: 300px; word-wrap: break-word;">{{ t.description }}</td>
+              <tr *ngFor="let g of groupedPendingTimesheets()">
+                <td style="text-align: left;"><strong style="font-size: 15px;">{{ g.employeeName }}</strong></td>
+                <td style="font-size: 13px; color: var(--text-muted);">{{ g.weekRange }}</td>
+                <td><span style="background: #f1f5f9; padding: 4px 8px; font-size: 12px; font-weight: 600;">{{ g.projectCode }}</span></td>
                 <td>
-                  <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-success" style="padding: 4px 10px;" (click)="approveTimesheet(t.id)">Approve</button>
-                    <button class="btn btn-danger" style="padding: 4px 10px;" (click)="openRejectModal(t.id)">Reject</button>
+                  <div style="font-weight: 700; color: var(--primary-color); font-size: 16px;">
+                    {{ g.totalHours }} <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">hrs</span>
+                  </div>
+                </td>
+                <td style="max-width: 250px; color: var(--text-muted); font-size: 13px;">{{ g.description || '--' }}</td>
+                <td>
+                  <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button class="btn btn-success" style="padding: 8px 16px; font-size: 12px; font-weight: 600;" (click)="approveTimesheet(g.ids)">Approve Week</button>
+                    <button class="btn btn-danger" style="padding: 8px 16px; font-size: 12px; font-weight: 600;" (click)="openRejectModal(g.ids)">Reject Week</button>
                   </div>
                 </td>
               </tr>
-              <tr *ngIf="pendingTimesheets().length === 0">
-                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">All caught up! No pending approvals.</td>
+              <tr *ngIf="groupedPendingTimesheets().length === 0">
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 50px;">
+                  <div>All caught up! No pending weekly submissions to review.</div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -280,28 +296,64 @@
 <!-- New Timesheet (Employee) -->
 <div class="modal-overlay" *ngIf="showTimesheetModal()" (click)="closeTimesheetModal()">
   <div class="modal-content glass-panel" (click)="$event.stopPropagation()">
-    <h2 style="margin-bottom: 20px;">Submit New Timesheet</h2>
+    <h2 style="margin-bottom: 20px;">Submit Weekly Timesheet</h2>
     
     <div style="display: flex; flex-direction: column; gap: 15px;">
-      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Select Project Code</label>
-      <select class="input-field" [ngModel]="tProject()" (ngModelChange)="tProject.set($event)">
-        <option value="" selected style="color: #a5b4fc;">-- Select assigned project --</option>
-        <option *ngFor="let p of myAssignedProjects()" [value]="p.code">{{ p.code }} - {{ p.name }}</option>
-      </select>
+      <div style="display: flex; gap: 15px;">
+        <div style="flex: 1;">
+          <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px; display: block;">Project Code</label>
+          <select class="input-field" [ngModel]="tProject()" (ngModelChange)="tProject.set($event)">
+            <option value="" selected style="color: #a5b4fc;">-- Select assigned project --</option>
+            <option *ngFor="let p of myAssignedProjects()" [value]="p.code">{{ p.code }} - {{ p.name }}</option>
+          </select>
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px; display: block;">Week Starting (Monday)</label>
+          <input type="date" class="input-field" [ngModel]="tDate()" (ngModelChange)="tDate.set($event)">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top: 10px;">
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--primary-color);">MON</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tMon()" (ngModelChange)="tMon.set($event)">
+        </div>
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--primary-color);">TUE</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tTue()" (ngModelChange)="tTue.set($event)">
+        </div>
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--primary-color);">WED</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tWed()" (ngModelChange)="tWed.set($event)">
+        </div>
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--primary-color);">THU</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tThu()" (ngModelChange)="tThu.set($event)">
+        </div>
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--primary-color);">FRI</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tFri()" (ngModelChange)="tFri.set($event)">
+        </div>
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: #94a3b8;">SAT</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tSat()" (ngModelChange)="tSat.set($event)">
+        </div>
+        <div style="text-align: center;">
+          <label style="font-size: 11px; font-weight: 600; color: #94a3b8;">SUN</label>
+          <input type="number" class="input-field" style="padding: 10px 5px; text-align: center;" [ngModel]="tSun()" (ngModelChange)="tSun.set($event)">
+        </div>
+      </div>
       
-      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Date</label>
-      <input type="date" class="input-field" [ngModel]="tDate()" (ngModelChange)="tDate.set($event)">
-      
-      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Hours Worked (Max 24)</label>
-      <input type="number" class="input-field" placeholder="Hours" max="24" [ngModel]="tHours()" (ngModelChange)="tHours.set($event)">
-      
-      <label style="font-size: 12px; color: var(--text-muted); margin-bottom: -10px;">Description</label>
-      <textarea class="input-field" placeholder="Description of work done..." rows="3" [ngModel]="tDesc()" (ngModelChange)="tDesc.set($event)"></textarea>
+      <div>
+        <label style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px; display: block;">Description (Optional)</label>
+        <textarea class="input-field" placeholder="Brief description for the week..." rows="2" [ngModel]="tDesc()" (ngModelChange)="tDesc.set($event)"></textarea>
+      </div>
     </div>
 
-    <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
-      <button class="btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main);" (click)="closeTimesheetModal()">Cancel</button>
-      <button class="btn btn-success" (click)="saveTimesheet()">Save Draft</button>
+    <div class="modal-footer" style="padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; gap: 12px; justify-content: flex-end;">
+      <button class="btn btn-danger" (click)="closeTimesheetModal()" style="padding: 10px 20px; font-weight: 600;">Cancel</button>
+      <button class="btn btn-primary" (click)="saveTimesheet('Draft')" style="padding: 10px 20px; font-weight: 600;">Save as Draft</button>
+      <button class="btn btn-success" (click)="saveTimesheet('Submitted')" style="padding: 10px 20px; font-weight: 600;">Submit for Approval</button>
     </div>
   </div>
 </div>
@@ -412,11 +464,13 @@
   </div>
 </ng-template>
 
-<!-- Custom Glass Toast Alert -->
+<!-- Dynamic Success/Error Toast -->
 <div class="custom-toast" [class.show]="customAlertMessage() !== ''">
-  <div class="toast-content glass-panel">
-    <div class="toast-icon">⚠️</div>
-    <div class="toast-message">{{ customAlertMessage() }}</div>
+  <div class="toast-content glass-panel" 
+    [style.border-color]="alertType() === 'success' ? 'var(--success)' : 'var(--danger)'"
+    [style.background]="'white'">
+    <div class="toast-icon">{{ alertType() === 'success' ? '✅' : '⚠️' }}</div>
+    <div class="toast-message" [style.color]="'var(--text-main)'">{{ customAlertMessage() }}</div>
     <button class="toast-close" (click)="customAlertMessage.set('')">&times;</button>
   </div>
 </div>
@@ -463,5 +517,5 @@
 .btn-small { padding: 6px 12px; font-size: 12px; }
 table { margin-top: 0; width: 100%; }
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.modal-content { width: 450px; padding: 30px; animation: fadeInSlideUp 0.3s ease-out; background: white; border-radius: 0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+.modal-content { width: 600px; padding: 30px; animation: fadeInSlideUp 0.3s ease-out; background: white; border-radius: 0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
 </style>

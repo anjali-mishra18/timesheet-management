@@ -18,5 +18,19 @@ namespace TimesheetApi.Factories
                 ManagerComment = null
             };
         }
+
+        public static Timesheet CreateFromDto(TimesheetDto dto)
+        {
+            return new Timesheet
+            {
+                Date = dto.Date,
+                ProjectCode = dto.ProjectCode,
+                Hours = dto.Hours,
+                Description = dto.Description,
+                Employee = dto.Employee,
+                Status = dto.Status, // HONOR THE DTO STATUS
+                ManagerComment = null
+            };
+        }
     }
 }

@@ -3,9 +3,24 @@ import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { Timesheet } from './features/timesheets/timesheet.model';
 import { Project } from './features/projects/project.model';
+
+interface WeeklyGroup {
+  weekRange: string;
+  projectCode: string;
+  description: string;
+  status: string;
+  id?: number;
+  ids?: number[]; // For bulk actions
+  employeeName?: string;
+  totalHours?: number;
+  managerComment?: string;
+  hours: { mon: number; tue: number; wed: number; thu: number; fri: number; sat: number; sun: number; }
+}
 
 import { AuthFeatureModule } from './features/auth/auth.module';
 import { TimesheetsFeatureModule } from './features/timesheets/timesheets.module';
@@ -33,6 +48,7 @@ export class App implements OnInit {
 
   // Custom Alert System
   customAlertMessage = signal('');
+  alertType = signal<'success'|'error'>('success');
 
   // Shared Data
   projects = signal<Project[]>([]);
@@ -92,10 +108,16 @@ export class App implements OnInit {
   showProjectModal = signal(false);
   showRejectModal = signal(false);
 
-  // Form States - Timesheet
-  tProject = signal('PRJ-100');
+  // Form States - Timesheet (Weekly)
+  tProject = signal('');
   tDate = signal('');
-  tHours = signal<number | null>(null);
+  tMon = signal<number | null>(null);
+  tTue = signal<number | null>(null);
+  tWed = signal<number | null>(null);
+  tThu = signal<number | null>(null);
+  tFri = signal<number | null>(null);
+  tSat = signal<number | null>(null);
+  tSun = signal<number | null>(null);
   tDesc = signal('');
 
   // Form States - Project
@@ -113,7 +135,10 @@ export class App implements OnInit {
 
   // Form States - Reject
   rejectComment = signal('');
-  rejectActionId = signal<number | null>(null);
+  rejectActionIds = signal<number[]>([]);
+
+  // Editing State
+  editingWeekIds = signal<number[]>([]);
 
   activeProjects = computed(() => this.projects().filter(p => p.status === 'Active'));
   
@@ -124,10 +149,101 @@ export class App implements OnInit {
   // Computeds - Employee
   myAssignedProjects = computed(() => this.activeProjects().filter(p => p.assignedEmployee === this.loggedInFullName()));
   employeeTimesheets = computed(() => this.timesheets().filter(t => t.employee === this.loggedInFullName()));
+  
+  // Logic to group daily records into a weekly view for horizontal display
+  groupedTimesheets = computed<WeeklyGroup[]>(() => {
+    const groups: { [key: string]: WeeklyGroup } = {};
+    const list = this.employeeTimesheets();
+    
+    for (const t of list) {
+      const dt = new Date(t.date);
+      const day = dt.getUTCDay();
+      const diff = dt.getUTCDate() - day + (day === 0 ? -6 : 1);
+      const monDate = new Date(dt.setUTCDate(diff));
+      const mon = monDate.toISOString().split('T')[0];
+
+      const key = `${t.projectCode}-${mon}`;
+      
+      if (!groups[key]) {
+        const sunDate = new Date(monDate);
+        sunDate.setUTCDate(sunDate.getUTCDate() + 6);
+        const sun = sunDate.toISOString().split('T')[0];
+
+        groups[key] = {
+          weekRange: `${mon} to ${sun}`,
+          projectCode: t.projectCode,
+          description: t.description,
+          status: t.status,
+          managerComment: t.managerComment,
+          ids: [],
+          hours: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 }
+        };
+      }
+      
+      groups[key].ids?.push(t.id!);
+      // Ensure we capture the comment if it exists in any of the entries in the group
+      if (t.managerComment) groups[key].managerComment = t.managerComment;
+      
+      const dayIndex = new Date(t.date).getUTCDay();
+      const dayMap: { [key: number]: keyof WeeklyGroup['hours'] } = { 1:'mon', 2:'tue', 3:'wed', 4:'thu', 5:'fri', 6:'sat', 0:'sun' };
+      const dayKey = dayMap[dayIndex];
+      if (dayKey) {
+        groups[key].hours[dayKey] = t.hours;
+      }
+    }
+    
+    return Object.values(groups);
+  });
+
   totalEmployeeHours = computed(() => this.employeeTimesheets().reduce((sum, t) => sum + t.hours, 0));
 
   // Computeds - Manager
   pendingTimesheets = computed(() => this.timesheets().filter(t => t.status === 'Submitted'));
+  
+  groupedPendingTimesheets = computed<WeeklyGroup[]>(() => {
+    const groups: { [key: string]: WeeklyGroup } = {};
+    const list = this.pendingTimesheets();
+    
+    for (const t of list) {
+      const dt = new Date(t.date);
+      const day = dt.getUTCDay();
+      const diff = dt.getUTCDate() - day + (day === 0 ? -6 : 1);
+      const monDate = new Date(dt.setUTCDate(diff));
+      const mon = monDate.toISOString().split('T')[0];
+
+      // Key includes employee for manager view
+      const key = `${t.employee}-${t.projectCode}-${mon}`;
+      
+      if (!groups[key]) {
+        const sunDate = new Date(monDate);
+        sunDate.setUTCDate(sunDate.getUTCDate() + 6);
+        const sun = sunDate.toISOString().split('T')[0];
+
+        groups[key] = {
+          weekRange: `${mon} to ${sun}`,
+          employeeName: t.employee,
+          projectCode: t.projectCode,
+          description: t.description,
+          status: t.status,
+          ids: [],
+          totalHours: 0,
+          hours: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 }
+        };
+      }
+      
+      groups[key].ids?.push(t.id!);
+      groups[key].totalHours! += t.hours;
+
+      const dayIndex = new Date(t.date).getUTCDay();
+      const dayMap: { [key: number]: keyof WeeklyGroup['hours'] } = { 1:'mon', 2:'tue', 3:'wed', 4:'thu', 5:'fri', 6:'sat', 0:'sun' };
+      const dayKey = dayMap[dayIndex];
+      if (dayKey) {
+        groups[key].hours[dayKey] = t.hours;
+      }
+    }
+    
+    return Object.values(groups);
+  });
   
   // Reports Computeds (Manager)
   projectWiseReport = computed(() => {
@@ -177,69 +293,142 @@ export class App implements OnInit {
   }
 
   // Custom Alert helper
-  showAlert(msg: string) {
+  showAlert(msg: string, type: 'success'|'error' = 'error') {
+    this.alertType.set(type);
     this.customAlertMessage.set(msg);
     setTimeout(() => this.customAlertMessage.set(''), 3500);
   }
 
   // --- Timesheet Creation (Employee) ---
   openNewTimesheet() {
+    this.editingWeekIds.set([]);
+    this.closeTimesheetModal(); // reset
+    this.showTimesheetModal.set(true);
+  }
+
+  editTimesheet(g: WeeklyGroup) {
+    this.editingWeekIds.set(g.ids || []);
+    this.tProject.set(g.projectCode);
+    this.tDate.set(g.weekRange.split(' to ')[0]);
+    this.tDesc.set(g.description);
+    this.tMon.set(g.hours.mon || null);
+    this.tTue.set(g.hours.tue || null);
+    this.tWed.set(g.hours.wed || null);
+    this.tThu.set(g.hours.thu || null);
+    this.tFri.set(g.hours.fri || null);
+    this.tSat.set(g.hours.sat || null);
+    this.tSun.set(g.hours.sun || null);
     this.showTimesheetModal.set(true);
   }
 
   closeTimesheetModal() {
     this.showTimesheetModal.set(false);
-    this.tDate.set(''); this.tHours.set(null); this.tDesc.set('');
+    this.editingWeekIds.set([]);
+    this.tProject.set(''); this.tDate.set(''); this.tDesc.set('');
+    this.tMon.set(null); this.tTue.set(null); this.tWed.set(null); 
+    this.tThu.set(null); this.tFri.set(null); this.tSat.set(null); this.tSun.set(null);
   }
 
-  saveTimesheet() {
-    const hours = this.tHours();
-    if (!hours || hours <= 0 || hours > 24) {
-      this.showAlert('Error: You can only log between 1 and 24 hours per day.');
-      return;
-    }
+  saveTimesheet(targetStatus: string = 'Draft') {
     if (!this.tDate() || !this.tProject()) {
-      this.showAlert('Error: Date and Project Code are required.');
-      return;
-    }
-    const dup = this.employeeTimesheets().find(t => t.projectCode === this.tProject() && t.date === this.tDate());
-    if (dup) {
-      this.showAlert('Error: No duplicate entries allowed for same project code and date.');
+      this.showAlert('Error: Week Starting Date and Project Code are required.');
       return;
     }
 
-    const newT: Timesheet = {
-      date: this.tDate(),
-      projectCode: this.tProject(),
-      hours: hours,
-      status: 'Draft',
-      description: this.tDesc(),
-      employee: this.loggedInFullName()
-    };
-    
-    this.http.post<Timesheet>(`${this.apiUrl}/timesheet`, newT).subscribe({
-      next: (savedT) => {
-        this.timesheets.update(list => [savedT, ...list]);
-        this.closeTimesheetModal();
-      },
-      error: (err) => {
-        this.showAlert(err.error || 'Database Error: Entry blocked by server validation rule.');
+    const selectedDate = new Date(this.tDate());
+    if (selectedDate.getUTCDay() !== 1) {
+      this.showAlert('Error: Please select a Monday as the starting date of the week.');
+      return;
+    }
+
+    const weekHours = [
+      { day: 0, h: this.tMon() }, { day: 1, h: this.tTue() }, { day: 2, h: this.tWed() },
+      { day: 3, h: this.tThu() }, { day: 4, h: this.tFri() }, { day: 5, h: this.tSat() },
+      { day: 6, h: this.tSun() }
+    ];
+
+    const entriesToSave = weekHours.filter(wh => wh.h !== null && wh.h > 0);
+    if (entriesToSave.length === 0) {
+      this.showAlert('Error: Please enter hours for at least one day.');
+      return;
+    }
+
+    // --- DUPLICATE CHECK ---
+    if (this.editingWeekIds().length === 0) {
+      const existing = this.timesheets();
+      const hasOverlap = entriesToSave.some(entry => {
+        const dObj = new Date(selectedDate);
+        dObj.setUTCDate(dObj.getUTCDate() + entry.day);
+        const dStr = dObj.toISOString().split('T')[0];
+        return existing.some(ext => ext.employee === this.loggedInFullName() && ext.projectCode === this.tProject() && ext.date === dStr);
+      });
+
+      if (hasOverlap) {
+        this.showAlert('Error: This week already has logs for the selected project. Please Update the existing one.');
+        return;
       }
+    }
+
+    const oldIds = this.editingWeekIds();
+    const deleteObservables = oldIds.length > 0 
+      ? oldIds.map(id => this.http.delete(`${this.apiUrl}/timesheet/${id}`).pipe(catchError(() => of(null))))
+      : [of(null)];
+
+    // Wait for all deletes to finish before posting
+    forkJoin(deleteObservables).subscribe(() => {
+      // Clear local state if we were editing
+      if (oldIds.length > 0) {
+        this.timesheets.update(list => list.filter(t => !oldIds.includes(t.id!)));
+      }
+
+      // Process fresh entries
+      const postObservables = entriesToSave.map(entry => {
+        const dateObj = new Date(selectedDate);
+        dateObj.setUTCDate(dateObj.getUTCDate() + entry.day);
+        const dateStr = dateObj.toISOString().split('T')[0];
+
+        const newT: Timesheet = {
+          date: dateStr,
+          projectCode: this.tProject(),
+          hours: entry.h!,
+          status: targetStatus,
+          description: this.tDesc(),
+          employee: this.loggedInFullName()
+        };
+        return this.http.post<Timesheet>(`${this.apiUrl}/timesheet`, newT);
+      });
+
+      forkJoin(postObservables).subscribe({
+        next: (savedResults) => {
+          this.timesheets.update(list => [...savedResults, ...list]);
+          this.showAlert(`Timesheet ${targetStatus === 'Draft' ? 'saved as draft' : 'submitted successfully'}.`, 'success');
+          this.closeTimesheetModal();
+        },
+        error: (err) => {
+          this.showAlert(err.error?.message || 'Error occurred during submission. Please check for duplicates.', 'error');
+        }
+      });
     });
   }
 
-  submitTimesheet(id?: number) {
-    if(!id) return;
-    this.http.put(`${this.apiUrl}/timesheet/${id}/submit`, {}).subscribe(() => {
-      this.timesheets.update(list => list.map(t => t.id === id ? { ...t, status: 'Submitted' } : t));
-    });
+  submitTimesheet(ids?: number[]) {
+    if(!ids || ids.length === 0) return;
+    for (const id of ids) {
+      this.http.put(`${this.apiUrl}/timesheet/${id}/submit`, {}).subscribe(() => {
+        this.timesheets.update(list => list.map(t => t.id === id ? { ...t, status: 'Submitted' } : t));
+      });
+    }
+    this.showAlert('Selected week submitted for approval.', 'success');
   }
   
-  deleteTimesheet(id?: number) {
-    if(!id) return;
-    this.http.delete(`${this.apiUrl}/timesheet/${id}`).subscribe(() => {
-      this.timesheets.update(list => list.filter(t => t.id !== id));
-    });
+  deleteTimesheet(ids?: number[]) {
+    if(!ids || ids.length === 0) return;
+    for (const id of ids) {
+      this.http.delete(`${this.apiUrl}/timesheet/${id}`).subscribe(() => {
+        this.timesheets.update(list => list.filter(t => t.id !== id));
+      });
+    }
+    this.showAlert('Draft week entries deleted.', 'success');
   }
 
   // --- Project Management (Manager) ---
@@ -291,6 +480,7 @@ export class App implements OnInit {
         next: (savedP) => {
           this.projects.update(list => list.map(p => p.id === editId ? savedP : p));
           this.closeProjectModal();
+          this.showAlert('Project updated successfully.', 'success');
         },
         error: (err) => this.showAlert(err.error?.message || err.message || 'Error: Could not update project.')
       });
@@ -299,6 +489,7 @@ export class App implements OnInit {
         next: (savedP) => {
           this.projects.update(list => [savedP, ...list]);
           this.closeProjectModal();
+          this.showAlert('New project created and assigned.', 'success');
         },
         error: (err) => this.showAlert(err.error?.message || err.message || 'Error: Could not create project.')
       });
@@ -309,26 +500,30 @@ export class App implements OnInit {
     if(!id) return;
     this.http.put(`${this.apiUrl}/projects/${id}/status`, {}).subscribe(() => {
       this.projects.update(list => list.map(p => p.id === id ? { ...p, status: p.status === 'Active' ? 'Deactivated' : 'Active' } : p));
+      this.showAlert('Project status toggled.', 'success');
     });
   }
 
   // --- Approvals (Manager) ---
-  approveTimesheet(id?: number) {
-    if(!id) return;
-    this.http.put(`${this.apiUrl}/timesheet/${id}/approve`, {}).subscribe(() => {
-      this.timesheets.update(list => list.map(t => t.id === id ? { ...t, status: 'Approved' } : t));
-    });
+  approveTimesheet(ids?: number[]) {
+    if(!ids || ids.length === 0) return;
+    for (const id of ids) {
+      this.http.put(`${this.apiUrl}/timesheet/${id}/approve`, {}).subscribe(() => {
+        this.timesheets.update(list => list.map(t => t.id === id ? { ...t, status: 'Approved' } : t));
+      });
+    }
+    this.showAlert('Weekly timesheet approved.', 'success');
   }
 
-  openRejectModal(id?: number) {
-    if(!id) return;
-    this.rejectActionId.set(id);
+  openRejectModal(ids?: number[]) {
+    if(!ids || ids.length === 0) return;
+    this.rejectActionIds.set(ids);
     this.showRejectModal.set(true);
   }
 
   closeRejectModal() {
     this.showRejectModal.set(false);
-    this.rejectActionId.set(null);
+    this.rejectActionIds.set([]);
     this.rejectComment.set('');
   }
 
@@ -337,12 +532,17 @@ export class App implements OnInit {
       this.showAlert('Error: Rejection requires mandatory comments.');
       return;
     }
-    const id = this.rejectActionId();
-    if (id) {
-      this.http.put(`${this.apiUrl}/timesheet/${id}/reject`, { comment: this.rejectComment() }).subscribe(() => {
-        this.timesheets.update(list => list.map(t => t.id === id ? { ...t, status: 'Rejected', managerComment: this.rejectComment() } : t));
-        this.closeRejectModal();
-      });
+    const ids = this.rejectActionIds();
+    if (ids && ids.length > 0) {
+      for (const id of ids) {
+        this.http.put(`${this.apiUrl}/timesheet/${id}/reject`, { comment: this.rejectComment() }).subscribe({
+          next: () => {
+            this.timesheets.update(list => list.map(t => t.id === id ? { ...t, status: 'Rejected', managerComment: this.rejectComment() } : t));
+          }
+        });
+      }
+      this.showAlert('Weekly timesheet rejected with comments.', 'success');
+      this.closeRejectModal();
     }
   }
 }

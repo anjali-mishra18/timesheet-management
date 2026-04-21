@@ -38,8 +38,7 @@ namespace TimesheetApi.Services
             var isDuplicate = await _repository.ExistsAsync(timesheetDto.Employee, timesheetDto.ProjectCode, timesheetDto.Date);
             if (isDuplicate) return null; // Signal duplicate failure back to Controller
 
-            // FACTORY PATTERN HOOK
-            var timesheet = TimesheetFactory.CreateNewDraft(timesheetDto);
+            var timesheet = TimesheetFactory.CreateFromDto(timesheetDto);
             
             await _repository.AddAsync(timesheet);
 
